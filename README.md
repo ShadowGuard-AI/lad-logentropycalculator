@@ -1,3 +1,5 @@
+![Banner](banner.png)
+
 # lad-LogEntropyCalculator
 Calculates Shannon entropy for specified log fields, highlighting fields with unusually low entropy that may indicate static or malicious patterns. - Focused on Implements simple anomaly detection algorithms (e.g., clustering, outlier detection) on pre-processed log data to identify unusual patterns that may indicate security incidents.  Focuses on detecting statistical anomalies in log event frequency and attributes.
 
