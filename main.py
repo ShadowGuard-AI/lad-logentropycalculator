@@ -67,7 +67,7 @@ def analyze_log_file(log_file, fields, delimiter=',', threshold=0.5, header=Fals
         # Determine if header is present
         header_row = 0 if header else None
 
-        df = pd.read_csv(log_file, delimiter=delimiter, usecols=fields, header=header_row, encoding='utf-8', error_bad_lines=False)
+        df = pd.read_csv(log_file, delimiter=delimiter, usecols=fields, header=header_row, encoding='utf-8', on_bad_lines='skip')
 
         #Rename columns if header is not present
         if header_row is None:
