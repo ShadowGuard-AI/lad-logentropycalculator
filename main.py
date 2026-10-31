@@ -67,11 +67,22 @@ def analyze_log_file(log_file, fields, delimiter=',', threshold=0.5, header=Fals
         # Determine if header is present
         header_row = 0 if header else None
 
-        df = pd.read_csv(log_file, delimiter=delimiter, usecols=fields, header=header_row, encoding='utf-8', on_bad_lines='skip')
-
-        #Rename columns if header is not present
         if header_row is None:
+            # No header row: field names cannot be used as usecols, because
+            # pandas matches usecols against column names that do not exist
+            # yet. Load positionally, check the column count, then rename.
+            df = pd.read_csv(log_file, delimiter=delimiter, header=None, encoding='utf-8', on_bad_lines='skip')
+            if df.shape[1] < len(fields):
+                print(f"Error: Log file has {df.shape[1]} columns, but {len(fields)} fields were named. Check the log file and field names.")
+                return False
+            df = df.iloc[:, :len(fields)]
             df.columns = fields
+        else:
+            df = pd.read_csv(log_file, delimiter=delimiter, usecols=fields, header=header_row, encoding='utf-8', on_bad_lines='skip')
+
+        if len(df) == 0:
+            print(f"Error: Log file has no data rows to analyse: {log_file}.")
+            return False
 
         logging.info(f"Dataframe loaded successfully with {len(df)} rows.")
 
@@ -79,7 +90,7 @@ def analyze_log_file(log_file, fields, delimiter=',', threshold=0.5, header=Fals
             if field not in df.columns:
                 logging.error(f"Field '{field}' not found in the log file. Available fields are: {df.columns.tolist()}")
                 print(f"Error: Field '{field}' not found in the log file. Check log file and field names.") #Provide user feedback
-                return
+                return False
 
         results = {}
         for field in fields:
@@ -93,21 +104,28 @@ def analyze_log_file(log_file, fields, delimiter=',', threshold=0.5, header=Fals
                 else:
                     print(f"Field '{field}' entropy: {entropy:.2f}")
 
+        return True
+
     except FileNotFoundError:
         logging.error(f"Log file not found: {log_file}")
         print(f"Error: Log file not found: {log_file}. Please check the file path.") #User feedback
+        return False
     except pd.errors.EmptyDataError:
         logging.error(f"Log file is empty: {log_file}")
         print(f"Error: Log file is empty: {log_file}.") #User Feedback
+        return False
     except pd.errors.ParserError as e:
         logging.error(f"Error parsing log file: {e}")
         print(f"Error: Could not parse log file.  Check the delimiter and ensure the file is properly formatted. Detailed Error: {e}") #User feedback
+        return False
     except ValueError as e:
          logging.error(f"ValueError: {e}")
          print(f"Error: ValueError - {e}. Check the log file and command-line arguments.")
+         return False
     except Exception as e:
         logging.error(f"An unexpected error occurred: {e}")
         print(f"An unexpected error occurred: {e}. Check the logs for more details.") #User feedback
+        return False
 
 
 def main():
@@ -125,7 +143,8 @@ def main():
         print("Error: Threshold must be a non-negative number.")
         sys.exit(1)
 
-    analyze_log_file(args.log_file, args.fields, args.delimiter, args.threshold, args.header)
+    if not analyze_log_file(args.log_file, args.fields, args.delimiter, args.threshold, args.header):
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
