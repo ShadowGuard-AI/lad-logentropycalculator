@@ -40,6 +40,10 @@ def calculate_shannon_entropy(data):
         if data.empty:
             return 0.0  # Return 0 for empty data
 
+        # value_counts drops missing values before normalising, so a field
+        # that is half empty is measured on its present half only. The blank
+        # half, often the interesting half in a log, contributes nothing to
+        # this number.
         probabilities = data.value_counts(normalize=True)
         entropy = -np.sum(probabilities * np.log2(probabilities))
         return entropy
@@ -71,11 +75,18 @@ def analyze_log_file(log_file, fields, delimiter=',', threshold=0.5, header=Fals
             # No header row: field names cannot be used as usecols, because
             # pandas matches usecols against column names that do not exist
             # yet. Load positionally, check the column count, then rename.
+            # on_bad_lines='skip' appears on both read paths, so malformed rows
+            # vanish silently and the entropy is computed over the survivors. A
+            # log whose worst rows are malformed is reported on its best rows.
             df = pd.read_csv(log_file, delimiter=delimiter, header=None, encoding='utf-8', on_bad_lines='skip')
             if df.shape[1] < len(fields):
                 print(f"Error: Log file has {df.shape[1]} columns, but {len(fields)} fields were named. Check the log file and field names.")
                 return False
             df = df.iloc[:, :len(fields)]
+            # In no-header mode the field names are positions, not names: the
+            # first columns are taken in file order and renamed from the command
+            # line list. Naming a field that sits fifth while asking for two
+            # fields analyses whichever column is second, under the fifth's name.
             df.columns = fields
         else:
             df = pd.read_csv(log_file, delimiter=delimiter, usecols=fields, header=header_row, encoding='utf-8', on_bad_lines='skip')
@@ -95,6 +106,9 @@ def analyze_log_file(log_file, fields, delimiter=',', threshold=0.5, header=Fals
         results = {}
         for field in fields:
             entropy = calculate_shannon_entropy(df[field])
+            # A field whose calculation failed is simply left out of the results,
+            # and the run can still return True on the strength of the others.
+            # The error is in the log; the printed output shows no gap.
             if entropy is not None:
                 results[field] = entropy
                 logging.info(f"Entropy for field '{field}': {entropy}")
